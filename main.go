@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -60,33 +62,25 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("Token: " + token.AccessToken)
-	http.ServeFile(w, r, "./static/callback.html")
+	client := httpClient{*http.DefaultClient, token.AccessToken}
+	//http.ServeFile(w, r, "./static/callback.html")
 
-	// //Encode the data
-	// postBody, _ := json.Marshal(map[string]string{
-	// 	"client_id":  "Toby",
-	// 	"client_secret": "Toby@example.com",
-	// 	"code": "Toby@example.com",
-	// 	"redirect_uri": "Toby@example.com",
-	// })
-	// responseBody := bytes.NewBuffer(postBody)
+	resp, err := client.Get("https://api.github.com/user")
+	if err != nil {
+		fmt.Println("Could not create request: " + err.Error())
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
+	}
 
-	// resp, err := http.Get("https://github.com/login/oauth/authorize?token=" + token.AccessToken)
-	// if err != nil {
-	// 	fmt.Println("Could not create request: "+err.Error())
-	// 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-	// 	return
-	// }
+	defer resp.Body.Close()
+	content, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Could not read content: " + err.Error())
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
+	}
 
-	// defer resp.Body.Close()
-	// content, err := ioutil.ReadAll(resp.Body)
-	// if err != nil {
-	// 	fmt.Println("Could not read content: "+err.Error())
-	// 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-	// 	return
-	// }
-
-	// fmt.Fprintf(w, "Response: %s", content)
+	fmt.Fprintf(w, "Response: %s", content)
 }
 
 // use godot package to load/read the .env file and
@@ -100,4 +94,34 @@ func goDotEnvVariable(key string) string {
 	}
 
 	return os.Getenv(key)
+}
+
+type httpClient struct {
+	c        http.Client
+	apiToken string
+}
+
+func (c *httpClient) Get(url string) (resp *http.Response, err error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.Do(req)
+}
+
+func (c *httpClient) Post(url, contentType string, body io.Reader) (resp *http.Response, err error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", contentType)
+
+	return c.Do(req)
+}
+
+func (c *httpClient) Do(req *http.Request) (resp *http.Response, err error) {
+	req.Header.Add("Authorization", "token "+c.apiToken)
+	return c.c.Do(req)
 }
