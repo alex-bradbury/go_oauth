@@ -15,7 +15,7 @@ import (
 
 var (
 	githubOauthConfig = &oauth2.Config{
-		RedirectURL:  "http://localhost:3000/callback",
+		RedirectURL:  goDotEnvVariable("CALLBACK_URL"),
 		ClientID:     goDotEnvVariable("GITHUB_CLIENT_ID"),
 		ClientSecret: goDotEnvVariable("GITHUB_CLIENT_SECRET"),
 		Endpoint:     github.Endpoint,
